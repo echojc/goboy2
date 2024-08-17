@@ -1,5 +1,7 @@
-run file: build-c
-  go run go/*.go {{file}}
+set positional-arguments
+
+run +args: build-c
+  go run go/*.go "$@"
 
 build-c: ensure-output
   gcc -O3 -Werror \
