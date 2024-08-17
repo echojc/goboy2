@@ -958,22 +958,6 @@ void cpu_execute(cpu *z) {
   }
 }
 
-#define REG_DIV  (0xff04)
-#define REG_TIMA (0xff05)
-#define REG_TMA  (0xff06)
-#define REG_TAC  (0xff07)
-#define REG_IF   (0xff0f)
-#define REG_IE   (0xffff)
-
-#define TAC_ENABLE       (1<<2)
-#define TAC_CLOCK_SELECT (0x03)
-
-#define INT_BUTTON       (1<<4)
-#define INT_SERIAL       (1<<3)
-#define INT_TIMER        (1<<2)
-#define INT_LCDC_STAT    (1<<1)
-#define INT_VBLANK       (1<<0)
-
 void cpu_run_timers(cpu *z) {
   // CPU: 2^20 cycles
 
@@ -1048,4 +1032,3 @@ void cpu_step(cpu *z) {
   }
   cpu_execute(z);
 }
-

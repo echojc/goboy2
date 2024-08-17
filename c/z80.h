@@ -27,4 +27,20 @@ void cpu_init(cpu *z);
 void cpu_step(cpu *z);
 u8 *ptr(cpu *z, u16 addr);
 
+#define REG_DIV  (0xff04)
+#define REG_TIMA (0xff05)
+#define REG_TMA  (0xff06)
+#define REG_TAC  (0xff07)
+#define REG_IF   (0xff0f)
+#define REG_IE   (0xffff)
+
+#define TAC_ENABLE       (1<<2)
+#define TAC_CLOCK_SELECT (0x03)
+
+#define INT_BUTTON       (1<<4)
+#define INT_SERIAL       (1<<3)
+#define INT_TIMER        (1<<2)
+#define INT_LCDC_STAT    (1<<1)
+#define INT_VBLANK       (1<<0)
+
 #endif
