@@ -962,6 +962,7 @@ void cpu_run_timers(cpu *z) {
   // CPU: 2^20 cycles
 
   // DIV: 2^14 (16384) Hz = every 2^6 cycles
+  // TODO this only works if <64 cycles have elapsed since last call
   if (z->cycles_prev % 64 > z->cycles % 64) {
     (*ptr(z, REG_DIV))++;
   }
@@ -991,9 +992,12 @@ void cpu_run_timers(cpu *z) {
   z->cycles_prev = z->cycles;
 }
 
-void cpu_handle_ints(cpu *z) {
+u8 cpu_handle_ints(cpu *z) {
   u8 masked = *ptr(z, REG_IF) & *ptr(z, REG_IE);
   if (masked) {
+    // always take cpu out of halted even if interrupts are disabled
+    z->halted = 0;
+
     if (z->ints_enabled) {
       *ptr(z, --z->sp) = (u8)(z->pc>>8); *ptr(z, --z->sp) = (u8)z->pc;
       if (masked & INT_VBLANK) {
@@ -1014,17 +1018,19 @@ void cpu_handle_ints(cpu *z) {
       }
 
       z->ints_enabled = 0;
-      z->cycles += 5; // https://gbdev.gg8.se/wiki/articles/Interrupts#Interrupt_Service_Routine
+      // https://gbdev.gg8.se/wiki/articles/Interrupts#Interrupt_Service_Routine
+      z->cycles += 5;
+      return 1;
     }
-
-    // always take cpu out of halted even if interrupts are disabled
-    z->halted = 0;
   }
+  return 0;
 }
 
 void cpu_step(cpu *z) {
   cpu_run_timers(z);
-  cpu_handle_ints(z);
+  if (cpu_handle_ints(z)) {
+    return;
+  }
 
   if (z->halted) {
     z->cycles++;
