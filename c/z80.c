@@ -3,23 +3,43 @@
 void cpu_init(cpu *z) {
   z->sp = 0xfffe;
   z->pc = 0x0100;
+  z->rom = (void *)0;
+  z->xrom = (void *)0;
+  z->xram = (void *)0;
 }
 
-u8 *ptr(cpu *z, u16 addr) {
+u8 cpu_read(cpu *z, u16 addr) {
   if (addr >= 0xfe00) {
-    return z->hram + (addr-0xfe00);
+    return z->hram[addr-0xfe00];
   }
   switch (addr>>13) {
-    case 0: return z->rom + (addr&0x1fff);
-    case 1: return z->rom + (addr&0x3fff);
-    case 2: return z->xrom + (addr&0x1fff);
-    case 3: return z->xrom + (addr&0x3fff);
-    case 4: return z->vram + (addr&0x1fff);
-    case 5: return z->xram + (addr&0x1fff);
+    case 0: return z->rom ? z->rom[addr&0x1fff] : 0;
+    case 1: return z->rom ? z->rom[addr&0x3fff] : 0;
+    case 2: return z->xrom ? z->xrom[addr&0x1fff] : 0;
+    case 3: return z->xrom ? z->xrom[addr&0x3fff] : 0;
+    case 4: return z->vram[addr&0x1fff];
+    case 5: return z->xram ? z->xram[addr&0x1fff] : 0;
     case 6:
-    case 7: return z->ram + (addr&0x1fff);
+    case 7: return z->ram[addr&0x1fff];
   }
-  return (void *)0;
+  return 0;
+}
+
+void cpu_write(cpu *z, u16 addr, u8 byte) {
+  if (addr >= 0xfe00) {
+    z->hram[addr-0xfe00] = byte;
+    return;
+  }
+  switch (addr>>13) {
+    case 0: break;
+    case 1: break;
+    case 2: break;
+    case 3: break;
+    case 4: z->vram[addr&0x1fff] = byte; break;
+    case 5: if (z->xram) z->xram[addr&0x1fff] = byte; break;
+    case 6:
+    case 7: z->ram[addr&0x1fff] = byte; break;
+  }
 }
 
 #define NN(l,h) ((u16)((l)+(((u16)(h))<<8)))
@@ -38,21 +58,21 @@ INLINE u16 set_nhc_flags(cpu *z, u16 a, u16 b, u16 res) {
   return res;
 }
 
-INLINE void ld_b_n(cpu *z) { z->b = *ptr(z, z->pc++); z->cycles += 2; }
-INLINE void ld_c_n(cpu *z) { z->c = *ptr(z, z->pc++); z->cycles += 2; }
-INLINE void ld_d_n(cpu *z) { z->d = *ptr(z, z->pc++); z->cycles += 2; }
-INLINE void ld_e_n(cpu *z) { z->e = *ptr(z, z->pc++); z->cycles += 2; }
-INLINE void ld_h_n(cpu *z) { z->h = *ptr(z, z->pc++); z->cycles += 2; }
-INLINE void ld_l_n(cpu *z) { z->l = *ptr(z, z->pc++); z->cycles += 2; }
-INLINE void ld_hl_n(cpu *z) { *ptr(z, HL(z)) = *ptr(z, z->pc++); z->cycles += 3; }
-INLINE void ld_a_n(cpu *z) { z->a = *ptr(z, z->pc++); z->cycles += 2; }
+INLINE void ld_b_n(cpu *z) { z->b = cpu_read(z, z->pc++); z->cycles += 2; }
+INLINE void ld_c_n(cpu *z) { z->c = cpu_read(z, z->pc++); z->cycles += 2; }
+INLINE void ld_d_n(cpu *z) { z->d = cpu_read(z, z->pc++); z->cycles += 2; }
+INLINE void ld_e_n(cpu *z) { z->e = cpu_read(z, z->pc++); z->cycles += 2; }
+INLINE void ld_h_n(cpu *z) { z->h = cpu_read(z, z->pc++); z->cycles += 2; }
+INLINE void ld_l_n(cpu *z) { z->l = cpu_read(z, z->pc++); z->cycles += 2; }
+INLINE void ld_hl_n(cpu *z) { cpu_write(z, HL(z), cpu_read(z, z->pc++)); z->cycles += 3; }
+INLINE void ld_a_n(cpu *z) { z->a = cpu_read(z, z->pc++); z->cycles += 2; }
 INLINE void ld_b_b(cpu *z) { z->b = z->b; z->cycles += 1; }
 INLINE void ld_b_c(cpu *z) { z->b = z->c; z->cycles += 1; }
 INLINE void ld_b_d(cpu *z) { z->b = z->d; z->cycles += 1; }
 INLINE void ld_b_e(cpu *z) { z->b = z->e; z->cycles += 1; }
 INLINE void ld_b_h(cpu *z) { z->b = z->h; z->cycles += 1; }
 INLINE void ld_b_l(cpu *z) { z->b = z->l; z->cycles += 1; }
-INLINE void ld_b_hl(cpu *z) { z->b = *ptr(z, HL(z)); z->cycles += 2; }
+INLINE void ld_b_hl(cpu *z) { z->b = cpu_read(z, HL(z)); z->cycles += 2; }
 INLINE void ld_b_a(cpu *z) { z->b = z->a; z->cycles += 1; }
 INLINE void ld_c_b(cpu *z) { z->c = z->b; z->cycles += 1; }
 INLINE void ld_c_c(cpu *z) { z->c = z->c; z->cycles += 1; }
@@ -60,7 +80,7 @@ INLINE void ld_c_d(cpu *z) { z->c = z->d; z->cycles += 1; }
 INLINE void ld_c_e(cpu *z) { z->c = z->e; z->cycles += 1; }
 INLINE void ld_c_h(cpu *z) { z->c = z->h; z->cycles += 1; }
 INLINE void ld_c_l(cpu *z) { z->c = z->l; z->cycles += 1; }
-INLINE void ld_c_hl(cpu *z) { z->c = *ptr(z, HL(z)); z->cycles += 2; }
+INLINE void ld_c_hl(cpu *z) { z->c = cpu_read(z, HL(z)); z->cycles += 2; }
 INLINE void ld_c_a(cpu *z) { z->c = z->a; z->cycles += 1; }
 INLINE void ld_d_b(cpu *z) { z->d = z->b; z->cycles += 1; }
 INLINE void ld_d_c(cpu *z) { z->d = z->c; z->cycles += 1; }
@@ -68,7 +88,7 @@ INLINE void ld_d_d(cpu *z) { z->d = z->d; z->cycles += 1; }
 INLINE void ld_d_e(cpu *z) { z->d = z->e; z->cycles += 1; }
 INLINE void ld_d_h(cpu *z) { z->d = z->h; z->cycles += 1; }
 INLINE void ld_d_l(cpu *z) { z->d = z->l; z->cycles += 1; }
-INLINE void ld_d_hl(cpu *z) { z->d = *ptr(z, HL(z)); z->cycles += 2; }
+INLINE void ld_d_hl(cpu *z) { z->d = cpu_read(z, HL(z)); z->cycles += 2; }
 INLINE void ld_d_a(cpu *z) { z->d = z->a; z->cycles += 1; }
 INLINE void ld_e_b(cpu *z) { z->e = z->b; z->cycles += 1; }
 INLINE void ld_e_c(cpu *z) { z->e = z->c; z->cycles += 1; }
@@ -76,7 +96,7 @@ INLINE void ld_e_d(cpu *z) { z->e = z->d; z->cycles += 1; }
 INLINE void ld_e_e(cpu *z) { z->e = z->e; z->cycles += 1; }
 INLINE void ld_e_h(cpu *z) { z->e = z->h; z->cycles += 1; }
 INLINE void ld_e_l(cpu *z) { z->e = z->l; z->cycles += 1; }
-INLINE void ld_e_hl(cpu *z) { z->e = *ptr(z, HL(z)); z->cycles += 2; }
+INLINE void ld_e_hl(cpu *z) { z->e = cpu_read(z, HL(z)); z->cycles += 2; }
 INLINE void ld_e_a(cpu *z) { z->e = z->a; z->cycles += 1;}
 INLINE void ld_h_b(cpu *z) { z->h = z->b; z->cycles += 1; }
 INLINE void ld_h_c(cpu *z) { z->h = z->c; z->cycles += 1; }
@@ -84,7 +104,7 @@ INLINE void ld_h_d(cpu *z) { z->h = z->d; z->cycles += 1; }
 INLINE void ld_h_e(cpu *z) { z->h = z->e; z->cycles += 1; }
 INLINE void ld_h_h(cpu *z) { z->h = z->h; z->cycles += 1; }
 INLINE void ld_h_l(cpu *z) { z->h = z->l; z->cycles += 1; }
-INLINE void ld_h_hl(cpu *z) { z->h = *ptr(z, HL(z)); z->cycles += 2; }
+INLINE void ld_h_hl(cpu *z) { z->h = cpu_read(z, HL(z)); z->cycles += 2; }
 INLINE void ld_h_a(cpu *z) { z->h = z->a; z->cycles += 1; }
 INLINE void ld_l_b(cpu *z) { z->l = z->b; z->cycles += 1; }
 INLINE void ld_l_c(cpu *z) { z->l = z->c; z->cycles += 1; }
@@ -92,65 +112,65 @@ INLINE void ld_l_d(cpu *z) { z->l = z->d; z->cycles += 1; }
 INLINE void ld_l_e(cpu *z) { z->l = z->e; z->cycles += 1; }
 INLINE void ld_l_h(cpu *z) { z->l = z->h; z->cycles += 1; }
 INLINE void ld_l_l(cpu *z) { z->l = z->l; z->cycles += 1; }
-INLINE void ld_l_hl(cpu *z) { z->l = *ptr(z, HL(z)); z->cycles += 2; }
+INLINE void ld_l_hl(cpu *z) { z->l = cpu_read(z, HL(z)); z->cycles += 2; }
 INLINE void ld_l_a(cpu *z) { z->l = z->a; z->cycles += 1;}
-INLINE void ld_hl_b(cpu *z) { *ptr(z, HL(z)) = z->b; z->cycles += 2; }
-INLINE void ld_hl_c(cpu *z) { *ptr(z, HL(z)) = z->c; z->cycles += 2; }
-INLINE void ld_hl_d(cpu *z) { *ptr(z, HL(z)) = z->d; z->cycles += 2; }
-INLINE void ld_hl_e(cpu *z) { *ptr(z, HL(z)) = z->e; z->cycles += 2; }
-INLINE void ld_hl_h(cpu *z) { *ptr(z, HL(z)) = z->h; z->cycles += 2; }
-INLINE void ld_hl_l(cpu *z) { *ptr(z, HL(z)) = z->l; z->cycles += 2; }
-INLINE void ld_hl_a(cpu *z) { *ptr(z, HL(z)) = z->a; z->cycles += 2; }
+INLINE void ld_hl_b(cpu *z) { cpu_write(z, HL(z), z->b); z->cycles += 2; }
+INLINE void ld_hl_c(cpu *z) { cpu_write(z, HL(z), z->c); z->cycles += 2; }
+INLINE void ld_hl_d(cpu *z) { cpu_write(z, HL(z), z->d); z->cycles += 2; }
+INLINE void ld_hl_e(cpu *z) { cpu_write(z, HL(z), z->e); z->cycles += 2; }
+INLINE void ld_hl_h(cpu *z) { cpu_write(z, HL(z), z->h); z->cycles += 2; }
+INLINE void ld_hl_l(cpu *z) { cpu_write(z, HL(z), z->l); z->cycles += 2; }
+INLINE void ld_hl_a(cpu *z) { cpu_write(z, HL(z), z->a); z->cycles += 2; }
 INLINE void ld_a_b(cpu *z) { z->a = z->b; z->cycles += 1; }
 INLINE void ld_a_c(cpu *z) { z->a = z->c; z->cycles += 1; }
 INLINE void ld_a_d(cpu *z) { z->a = z->d; z->cycles += 1; }
 INLINE void ld_a_e(cpu *z) { z->a = z->e; z->cycles += 1; }
 INLINE void ld_a_h(cpu *z) { z->a = z->h; z->cycles += 1; }
 INLINE void ld_a_l(cpu *z) { z->a = z->l; z->cycles += 1; }
-INLINE void ld_a_hl(cpu *z) { z->a = *ptr(z, HL(z)); z->cycles += 2; }
+INLINE void ld_a_hl(cpu *z) { z->a = cpu_read(z, HL(z)); z->cycles += 2; }
 INLINE void ld_a_a(cpu *z) { z->a = z->a; z->cycles += 1; }
-INLINE void ld_bc_a(cpu *z) { *ptr(z, BC(z)) = z->a; z->cycles += 2; }
-INLINE void ld_a_bc(cpu *z) { z->a = *ptr(z, BC(z)); z->cycles += 2; }
-INLINE void ld_de_a(cpu *z) { *ptr(z, DE(z)) = z->a; z->cycles += 2; }
-INLINE void ld_a_de(cpu *z) { z->a = *ptr(z, DE(z)); z->cycles += 2; }
-INLINE void ld_a_nn(cpu *z) { u8 l = *ptr(z, z->pc++); u8 h = *ptr(z, z->pc++); z->a = *ptr(z, NN(l, h)); z->cycles += 4; }
-INLINE void ld_nn_a(cpu *z) { u8 l = *ptr(z, z->pc++); u8 h = *ptr(z, z->pc++); *ptr(z, NN(l, h)) = z->a; z->cycles += 4; }
-INLINE void ldh_c_a(cpu *z) { *ptr(z, NN(z->c, 0xff)) = z->a; z->cycles += 2; }
-INLINE void ldh_a_c(cpu *z) { z->a = *ptr(z, NN(z->c, 0xff)); z->cycles += 2; }
-INLINE void ldh_n_a(cpu *z) { *ptr(z, NN(*ptr(z, z->pc++), 0xff)) = z->a; z->cycles += 3; }
-INLINE void ldh_a_n(cpu *z) { z->a = *ptr(z, NN(*ptr(z, z->pc++), 0xff)); z->cycles += 3; }
-INLINE void ldi_hl_a(cpu *z) { *ptr(z, HL(z)) = z->a; if (!(++z->l)) z->h++; z->cycles += 2; }
-INLINE void ldi_a_hl(cpu *z) { z->a = *ptr(z, HL(z)); if (!(++z->l)) z->h++; z->cycles += 2; }
-INLINE void ldd_hl_a(cpu *z) { *ptr(z, HL(z)) = z->a; if (!(z->l--)) z->h--; z->cycles += 2; }
-INLINE void ldd_a_hl(cpu *z) { z->a = *ptr(z, HL(z)); if (!(z->l--)) z->h--; z->cycles += 2; }
-INLINE void ld_bc_nn(cpu *z) { z->c = *ptr(z, z->pc++); z->b = *ptr(z, z->pc++); z->cycles += 3; }
-INLINE void ld_de_nn(cpu *z) { z->e = *ptr(z, z->pc++); z->d = *ptr(z, z->pc++); z->cycles += 3; }
-INLINE void ld_hl_nn(cpu *z) { z->l = *ptr(z, z->pc++); z->h = *ptr(z, z->pc++); z->cycles += 3; }
-INLINE void ld_sp_nn(cpu *z) { u8 l = *ptr(z, z->pc++); u8 h = *ptr(z, z->pc++); z->sp = NN(l, h); z->cycles += 3; }
+INLINE void ld_bc_a(cpu *z) { cpu_write(z, BC(z), z->a); z->cycles += 2; }
+INLINE void ld_a_bc(cpu *z) { z->a = cpu_read(z, BC(z)); z->cycles += 2; }
+INLINE void ld_de_a(cpu *z) { cpu_write(z, DE(z), z->a); z->cycles += 2; }
+INLINE void ld_a_de(cpu *z) { z->a = cpu_read(z, DE(z)); z->cycles += 2; }
+INLINE void ld_a_nn(cpu *z) { u8 l = cpu_read(z, z->pc++); u8 h = cpu_read(z, z->pc++); z->a = cpu_read(z, NN(l, h)); z->cycles += 4; }
+INLINE void ld_nn_a(cpu *z) { u8 l = cpu_read(z, z->pc++); u8 h = cpu_read(z, z->pc++); cpu_write(z, NN(l, h), z->a); z->cycles += 4; }
+INLINE void ldh_c_a(cpu *z) { cpu_write(z, NN(z->c, 0xff), z->a); z->cycles += 2; }
+INLINE void ldh_a_c(cpu *z) { z->a = cpu_read(z, NN(z->c, 0xff)); z->cycles += 2; }
+INLINE void ldh_n_a(cpu *z) { cpu_write(z, NN(cpu_read(z, z->pc++), 0xff), z->a); z->cycles += 3; }
+INLINE void ldh_a_n(cpu *z) { z->a = cpu_read(z, NN(cpu_read(z, z->pc++), 0xff)); z->cycles += 3; }
+INLINE void ldi_hl_a(cpu *z) { cpu_write(z, HL(z), z->a); if (!(++z->l)) z->h++; z->cycles += 2; }
+INLINE void ldi_a_hl(cpu *z) { z->a = cpu_read(z, HL(z)); if (!(++z->l)) z->h++; z->cycles += 2; }
+INLINE void ldd_hl_a(cpu *z) { cpu_write(z, HL(z), z->a); if (!(z->l--)) z->h--; z->cycles += 2; }
+INLINE void ldd_a_hl(cpu *z) { z->a = cpu_read(z, HL(z)); if (!(z->l--)) z->h--; z->cycles += 2; }
+INLINE void ld_bc_nn(cpu *z) { z->c = cpu_read(z, z->pc++); z->b = cpu_read(z, z->pc++); z->cycles += 3; }
+INLINE void ld_de_nn(cpu *z) { z->e = cpu_read(z, z->pc++); z->d = cpu_read(z, z->pc++); z->cycles += 3; }
+INLINE void ld_hl_nn(cpu *z) { z->l = cpu_read(z, z->pc++); z->h = cpu_read(z, z->pc++); z->cycles += 3; }
+INLINE void ld_sp_nn(cpu *z) { u8 l = cpu_read(z, z->pc++); u8 h = cpu_read(z, z->pc++); z->sp = NN(l, h); z->cycles += 3; }
 INLINE void ld_sp_hl(cpu *z) { z->sp = NN(z->l, z->h); z->cycles += 2; }
 INLINE void ldhl_sp_n(cpu *z) {
-  s8 n = (s8)*ptr(z, z->pc++);
+  s8 n = (s8)cpu_read(z, z->pc++);
   u16 t = set_hc_flags(z, z->sp, (u16)n, (u16)(z->sp+n));
   z->l = (u8)t;
   z->h = (u8)(t >> 8);
   z->cycles += 3;
 }
 INLINE void ld_nn_sp(cpu *z) {
-  u8 l = *ptr(z, z->pc++);
-  u8 h = *ptr(z, z->pc++);
+  u8 l = cpu_read(z, z->pc++);
+  u8 h = cpu_read(z, z->pc++);
   u16 p = NN(l, h);
-  *ptr(z, p) = (u8)z->sp;
-  *ptr(z, p+1) = (u8)(z->sp>>8);
+  cpu_write(z, p, (u8)z->sp);
+  cpu_write(z, p+1, (u8)(z->sp>>8));
   z->cycles += 5;
 }
-INLINE void push_bc(cpu *z) { *ptr(z, --z->sp) = z->b; *ptr(z, --z->sp) = z->c; z->cycles += 4; }
-INLINE void push_de(cpu *z) { *ptr(z, --z->sp) = z->d; *ptr(z, --z->sp) = z->e; z->cycles += 4; }
-INLINE void push_hl(cpu *z) { *ptr(z, --z->sp) = z->h; *ptr(z, --z->sp) = z->l; z->cycles += 4; }
-INLINE void push_af(cpu *z) { *ptr(z, --z->sp) = z->a; *ptr(z, --z->sp) = z->f; z->cycles += 4; }
-INLINE void pop_bc(cpu *z) { z->c = *ptr(z, z->sp++); z->b = *ptr(z, z->sp++); z->cycles += 3; }
-INLINE void pop_de(cpu *z) { z->e = *ptr(z, z->sp++); z->d = *ptr(z, z->sp++); z->cycles += 3; }
-INLINE void pop_hl(cpu *z) { z->l = *ptr(z, z->sp++); z->h = *ptr(z, z->sp++); z->cycles += 3; }
-INLINE void pop_af(cpu *z) { z->f = (*ptr(z, z->sp++))&0xf0; z->a = *ptr(z, z->sp++); z->cycles += 3; }
+INLINE void push_bc(cpu *z) { cpu_write(z, --z->sp, z->b); cpu_write(z, --z->sp, z->c); z->cycles += 4; }
+INLINE void push_de(cpu *z) { cpu_write(z, --z->sp, z->d); cpu_write(z, --z->sp, z->e); z->cycles += 4; }
+INLINE void push_hl(cpu *z) { cpu_write(z, --z->sp, z->h); cpu_write(z, --z->sp, z->l); z->cycles += 4; }
+INLINE void push_af(cpu *z) { cpu_write(z, --z->sp, z->a); cpu_write(z, --z->sp, z->f); z->cycles += 4; }
+INLINE void pop_bc(cpu *z) { z->c = cpu_read(z, z->sp++); z->b = cpu_read(z, z->sp++); z->cycles += 3; }
+INLINE void pop_de(cpu *z) { z->e = cpu_read(z, z->sp++); z->d = cpu_read(z, z->sp++); z->cycles += 3; }
+INLINE void pop_hl(cpu *z) { z->l = cpu_read(z, z->sp++); z->h = cpu_read(z, z->sp++); z->cycles += 3; }
+INLINE void pop_af(cpu *z) { z->f = cpu_read(z, z->sp++)&0xf0; z->a = cpu_read(z, z->sp++); z->cycles += 3; }
 
 INLINE void add_a(cpu *z, u8 x) { if ((z->a = (u8)set_hc_flags(z, z->a, x, z->a+x)) == 0) z->f |= FLAG_Z; z->cycles += 1; }
 INLINE void add_a_b(cpu *z) { add_a(z, z->b); }
@@ -159,9 +179,9 @@ INLINE void add_a_d(cpu *z) { add_a(z, z->d); }
 INLINE void add_a_e(cpu *z) { add_a(z, z->e); }
 INLINE void add_a_h(cpu *z) { add_a(z, z->h); }
 INLINE void add_a_l(cpu *z) { add_a(z, z->l); }
-INLINE void add_a_hl(cpu *z) { add_a(z, *ptr(z, HL(z))); z->cycles += 1; }
+INLINE void add_a_hl(cpu *z) { add_a(z, cpu_read(z, HL(z))); z->cycles += 1; }
 INLINE void add_a_a(cpu *z) { add_a(z, z->a); }
-INLINE void add_a_n(cpu *z) { add_a(z, *ptr(z, z->pc++)); z->cycles += 1; }
+INLINE void add_a_n(cpu *z) { add_a(z, cpu_read(z, z->pc++)); z->cycles += 1; }
 INLINE void adc_a(cpu *z, u8 x) { if ((z->a = (u8)set_hc_flags(z, z->a, x, z->a+x+((z->f&FLAG_C)>>4))) == 0) z->f |= FLAG_Z; z->cycles += 1; }
 INLINE void adc_a_b(cpu *z) { adc_a(z, z->b); }
 INLINE void adc_a_c(cpu *z) { adc_a(z, z->c); }
@@ -169,9 +189,9 @@ INLINE void adc_a_d(cpu *z) { adc_a(z, z->d); }
 INLINE void adc_a_e(cpu *z) { adc_a(z, z->e); }
 INLINE void adc_a_h(cpu *z) { adc_a(z, z->h); }
 INLINE void adc_a_l(cpu *z) { adc_a(z, z->l); }
-INLINE void adc_a_hl(cpu *z) { adc_a(z, *ptr(z, HL(z))); z->cycles += 1; }
+INLINE void adc_a_hl(cpu *z) { adc_a(z, cpu_read(z, HL(z))); z->cycles += 1; }
 INLINE void adc_a_a(cpu *z) { adc_a(z, z->a); }
-INLINE void adc_a_n(cpu *z) { adc_a(z, *ptr(z, z->pc++)); z->cycles += 1; }
+INLINE void adc_a_n(cpu *z) { adc_a(z, cpu_read(z, z->pc++)); z->cycles += 1; }
 INLINE void sub_a(cpu *z, u8 x) { if ((z->a = (u8)set_nhc_flags(z, z->a, x, z->a-x)) == 0) z->f |= FLAG_Z; z->cycles += 1; }
 INLINE void sub_a_b(cpu *z) { sub_a(z, z->b); }
 INLINE void sub_a_c(cpu *z) { sub_a(z, z->c); }
@@ -179,9 +199,9 @@ INLINE void sub_a_d(cpu *z) { sub_a(z, z->d); }
 INLINE void sub_a_e(cpu *z) { sub_a(z, z->e); }
 INLINE void sub_a_h(cpu *z) { sub_a(z, z->h); }
 INLINE void sub_a_l(cpu *z) { sub_a(z, z->l); }
-INLINE void sub_a_hl(cpu *z) { sub_a(z, *ptr(z, HL(z))); z->cycles += 1; }
+INLINE void sub_a_hl(cpu *z) { sub_a(z, cpu_read(z, HL(z))); z->cycles += 1; }
 INLINE void sub_a_a(cpu *z) { sub_a(z, z->a); }
-INLINE void sub_a_n(cpu *z) { sub_a(z, *ptr(z, z->pc++)); z->cycles += 1; }
+INLINE void sub_a_n(cpu *z) { sub_a(z, cpu_read(z, z->pc++)); z->cycles += 1; }
 INLINE void sbc_a(cpu *z, u8 x) { if ((z->a = (u8)set_nhc_flags(z, z->a, x, z->a-x-((z->f&FLAG_C)>>4))) == 0) z->f |= FLAG_Z; z->cycles += 1; }
 INLINE void sbc_a_b(cpu *z) { sbc_a(z, z->b); }
 INLINE void sbc_a_c(cpu *z) { sbc_a(z, z->c); }
@@ -189,36 +209,36 @@ INLINE void sbc_a_d(cpu *z) { sbc_a(z, z->d); }
 INLINE void sbc_a_e(cpu *z) { sbc_a(z, z->e); }
 INLINE void sbc_a_h(cpu *z) { sbc_a(z, z->h); }
 INLINE void sbc_a_l(cpu *z) { sbc_a(z, z->l); }
-INLINE void sbc_a_hl(cpu *z) { sbc_a(z, *ptr(z, HL(z))); z->cycles += 1; }
+INLINE void sbc_a_hl(cpu *z) { sbc_a(z, cpu_read(z, HL(z))); z->cycles += 1; }
 INLINE void sbc_a_a(cpu *z) { sbc_a(z, z->a); }
-INLINE void sbc_a_n(cpu *z) { sbc_a(z, *ptr(z, z->pc++)); z->cycles += 1; }
+INLINE void sbc_a_n(cpu *z) { sbc_a(z, cpu_read(z, z->pc++)); z->cycles += 1; }
 INLINE void and_a_b(cpu *z) { z->f = (z->a &= z->b) ? FLAG_H : (FLAG_Z | FLAG_H); z->cycles += 1; }
 INLINE void and_a_c(cpu *z) { z->f = (z->a &= z->c) ? FLAG_H : (FLAG_Z | FLAG_H); z->cycles += 1; }
 INLINE void and_a_d(cpu *z) { z->f = (z->a &= z->d) ? FLAG_H : (FLAG_Z | FLAG_H); z->cycles += 1; }
 INLINE void and_a_e(cpu *z) { z->f = (z->a &= z->e) ? FLAG_H : (FLAG_Z | FLAG_H); z->cycles += 1; }
 INLINE void and_a_h(cpu *z) { z->f = (z->a &= z->h) ? FLAG_H : (FLAG_Z | FLAG_H); z->cycles += 1; }
 INLINE void and_a_l(cpu *z) { z->f = (z->a &= z->l) ? FLAG_H : (FLAG_Z | FLAG_H); z->cycles += 1; }
-INLINE void and_a_hl(cpu *z) { z->f = (z->a &= *ptr(z, HL(z))) ? FLAG_H : (FLAG_Z | FLAG_H); z->cycles += 2; }
+INLINE void and_a_hl(cpu *z) { z->f = (z->a &= cpu_read(z, HL(z))) ? FLAG_H : (FLAG_Z | FLAG_H); z->cycles += 2; }
 INLINE void and_a_a(cpu *z) { z->f = (z->a &= z->a) ? FLAG_H : (FLAG_Z | FLAG_H); z->cycles += 1; }
-INLINE void and_a_n(cpu *z) { z->f = (z->a &= *ptr(z, z->pc++)) ? FLAG_H : (FLAG_Z | FLAG_H); z->cycles += 2; }
+INLINE void and_a_n(cpu *z) { z->f = (z->a &= cpu_read(z, z->pc++)) ? FLAG_H : (FLAG_Z | FLAG_H); z->cycles += 2; }
 INLINE void xor_a_b(cpu *z) { z->f = (z->a ^= z->b) ? 0 : FLAG_Z; z->cycles += 1; }
 INLINE void xor_a_c(cpu *z) { z->f = (z->a ^= z->c) ? 0 : FLAG_Z; z->cycles += 1; }
 INLINE void xor_a_d(cpu *z) { z->f = (z->a ^= z->d) ? 0 : FLAG_Z; z->cycles += 1; }
 INLINE void xor_a_e(cpu *z) { z->f = (z->a ^= z->e) ? 0 : FLAG_Z; z->cycles += 1; }
 INLINE void xor_a_h(cpu *z) { z->f = (z->a ^= z->h) ? 0 : FLAG_Z; z->cycles += 1; }
 INLINE void xor_a_l(cpu *z) { z->f = (z->a ^= z->l) ? 0 : FLAG_Z; z->cycles += 1; }
-INLINE void xor_a_hl(cpu *z) { z->f = (z->a ^= *ptr(z, HL(z))) ? 0 : FLAG_Z; z->cycles += 2; }
+INLINE void xor_a_hl(cpu *z) { z->f = (z->a ^= cpu_read(z, HL(z))) ? 0 : FLAG_Z; z->cycles += 2; }
 INLINE void xor_a_a(cpu *z) { z->f = (z->a ^= z->a) ? 0 : FLAG_Z; z->cycles += 1; }
-INLINE void xor_a_n(cpu *z) { z->f = (z->a ^= *ptr(z, z->pc++)) ? 0 : FLAG_Z; z->cycles += 2; }
+INLINE void xor_a_n(cpu *z) { z->f = (z->a ^= cpu_read(z, z->pc++)) ? 0 : FLAG_Z; z->cycles += 2; }
 INLINE void or_a_b(cpu *z) { z->f = (z->a |= z->b) ? 0 : FLAG_Z; z->cycles += 1; }
 INLINE void or_a_c(cpu *z) { z->f = (z->a |= z->c) ? 0 : FLAG_Z; z->cycles += 1; }
 INLINE void or_a_d(cpu *z) { z->f = (z->a |= z->d) ? 0 : FLAG_Z; z->cycles += 1; }
 INLINE void or_a_e(cpu *z) { z->f = (z->a |= z->e) ? 0 : FLAG_Z; z->cycles += 1; }
 INLINE void or_a_h(cpu *z) { z->f = (z->a |= z->h) ? 0 : FLAG_Z; z->cycles += 1; }
 INLINE void or_a_l(cpu *z) { z->f = (z->a |= z->l) ? 0 : FLAG_Z; z->cycles += 1; }
-INLINE void or_a_hl(cpu *z) { z->f = (z->a |= *ptr(z, HL(z))) ? 0 : FLAG_Z; z->cycles += 2; }
+INLINE void or_a_hl(cpu *z) { z->f = (z->a |= cpu_read(z, HL(z))) ? 0 : FLAG_Z; z->cycles += 2; }
 INLINE void or_a_a(cpu *z) { z->f = (z->a |= z->a) ? 0 : FLAG_Z; z->cycles += 1; }
-INLINE void or_a_n(cpu *z) { z->f = (z->a |= *ptr(z, z->pc++)) ? 0 : FLAG_Z; z->cycles += 2; }
+INLINE void or_a_n(cpu *z) { z->f = (z->a |= cpu_read(z, z->pc++)) ? 0 : FLAG_Z; z->cycles += 2; }
 INLINE void cp_a(cpu *z, u8 x) { if (set_nhc_flags(z, z->a, x, z->a-x) == 0) z->f |= FLAG_Z; z->cycles += 1; }
 INLINE void cp_a_b(cpu *z) { cp_a(z, z->b); }
 INLINE void cp_a_c(cpu *z) { cp_a(z, z->c); }
@@ -226,9 +246,9 @@ INLINE void cp_a_d(cpu *z) { cp_a(z, z->d); }
 INLINE void cp_a_e(cpu *z) { cp_a(z, z->e); }
 INLINE void cp_a_h(cpu *z) { cp_a(z, z->h); }
 INLINE void cp_a_l(cpu *z) { cp_a(z, z->l); }
-INLINE void cp_a_hl(cpu *z) { cp_a(z, *ptr(z, HL(z))); z->cycles += 1; }
+INLINE void cp_a_hl(cpu *z) { cp_a(z, cpu_read(z, HL(z))); z->cycles += 1; }
 INLINE void cp_a_a(cpu *z) { cp_a(z, z->a); }
-INLINE void cp_a_n(cpu *z) { cp_a(z, *ptr(z, z->pc++)); z->cycles += 1; }
+INLINE void cp_a_n(cpu *z) { cp_a(z, cpu_read(z, z->pc++)); z->cycles += 1; }
 INLINE void _inc(cpu *z, u8 *r) { (*r)++; z->f = (z->f&FLAG_C) | ((*r)?0:FLAG_Z) | (((*r)&0x0f)?0:FLAG_H); }
 INLINE void inc_b(cpu *z) { _inc(z, &z->b); z->cycles += 1; }
 INLINE void inc_c(cpu *z) { _inc(z, &z->c); z->cycles += 1; }
@@ -236,7 +256,11 @@ INLINE void inc_d(cpu *z) { _inc(z, &z->d); z->cycles += 1; }
 INLINE void inc_e(cpu *z) { _inc(z, &z->e); z->cycles += 1; }
 INLINE void inc_h(cpu *z) { _inc(z, &z->h); z->cycles += 1; }
 INLINE void inc_l(cpu *z) { _inc(z, &z->l); z->cycles += 1; }
-INLINE void inc_hl(cpu *z) { _inc(z, ptr(z, HL(z))); z->cycles += 3; }
+INLINE void inc_hl(cpu *z) {
+  u8 t = cpu_read(z, HL(z))+1; cpu_write(z, HL(z), t);
+  z->f = (z->f&FLAG_C) | (t?0:FLAG_Z) | ((t&0x0f)?0:FLAG_H);
+  z->cycles += 3;
+}
 INLINE void inc_a(cpu *z) { _inc(z, &z->a); z->cycles += 1; }
 INLINE void _dec(cpu *z, u8 *r) { (*r)--; z->f = (z->f&FLAG_C) | FLAG_N | ((*r)?0:FLAG_Z) | ((((*r)&0x0f)==0x0f)?FLAG_H:0); }
 INLINE void dec_b(cpu *z) { _dec(z, &z->b); z->cycles += 1; }
@@ -245,7 +269,11 @@ INLINE void dec_d(cpu *z) { _dec(z, &z->d); z->cycles += 1; }
 INLINE void dec_e(cpu *z) { _dec(z, &z->e); z->cycles += 1; }
 INLINE void dec_h(cpu *z) { _dec(z, &z->h); z->cycles += 1; }
 INLINE void dec_l(cpu *z) { _dec(z, &z->l); z->cycles += 1; }
-INLINE void dec_hl(cpu *z) { _dec(z, ptr(z, HL(z))); z->cycles += 3; }
+INLINE void dec_hl(cpu *z) {
+  u8 t = cpu_read(z, HL(z))-1; cpu_write(z, HL(z), t);
+  z->f = (z->f&FLAG_C) | FLAG_N | (t?0:FLAG_Z) | (((t&0x0f)==0x0f)?FLAG_H:0);
+  z->cycles += 3;
+}
 INLINE void dec_a(cpu *z) { _dec(z, &z->a); z->cycles += 1; }
 
 INLINE void add_hl(cpu *z, u32 x) {
@@ -262,7 +290,7 @@ INLINE void add_hl_de(cpu *z) { add_hl(z, ((u32)(z->d)<<8)+z->e); }
 INLINE void add_hl_hl(cpu *z) { add_hl(z, ((u32)(z->h)<<8)+z->l); }
 INLINE void add_hl_sp(cpu *z) { add_hl(z, z->sp); }
 INLINE void add_sp_n(cpu *z) {
-  s8 n = (s8)*ptr(z, z->pc++);
+  s8 n = (s8)cpu_read(z, z->pc++);
   z->sp = set_hc_flags(z, z->sp, (u16)n, (u16)(z->sp+n));
   z->cycles += 4;
 }
@@ -299,24 +327,24 @@ INLINE void rlca(cpu *z) { z->f = (z->a>>3)&FLAG_C; z->a = (u8)(z->a<<1)|(z->a>>
 INLINE void rla(cpu *z) { u8 t = (z->f&FLAG_C)>>4; z->f = (z->a>>3)&FLAG_C; z->a = (u8)(z->a<<1)|t; z->cycles += 1; }
 INLINE void rrca(cpu *z) { z->f = (z->a<<4)&FLAG_C; z->a = (u8)(z->a<<7)|(z->a>>1); z->cycles += 1; }
 INLINE void rra(cpu *z) { u8 t = (u8)((z->f&FLAG_C)<<3); z->f = (z->a<<4)&FLAG_C; z->a = t|(z->a>>1); z->cycles += 1; }
-INLINE void _jp(cpu *z) { u8 l = *ptr(z, z->pc++); u8 h = *ptr(z, z->pc++); z->pc = NN(l, h); }
+INLINE void _jp(cpu *z) { u8 l = cpu_read(z, z->pc++); u8 h = cpu_read(z, z->pc++); z->pc = NN(l, h); }
 INLINE void jp(cpu *z) { _jp(z); z->cycles += 3; }
 INLINE void jp_nz(cpu *z) { if (!(z->f & FLAG_Z)) { _jp(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void jp_z(cpu *z) { if (z->f & FLAG_Z) { _jp(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void jp_nc(cpu *z) { if (!(z->f & FLAG_C)) { _jp(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void jp_c(cpu *z) { if (z->f & FLAG_C) { _jp(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void jp_hl(cpu *z) { z->pc = HL(z); z->cycles += 1; }
-INLINE void _jr(cpu *z) { z->pc += (s8)(*ptr(z, z->pc++)); }
+INLINE void _jr(cpu *z) { z->pc += (s8)cpu_read(z, z->pc++); }
 INLINE void jr(cpu *z) { _jr(z); z->cycles += 2; }
 INLINE void jr_nz(cpu *z) { if (!(z->f & FLAG_Z)) { _jr(z); } else { z->pc += 1; } z->cycles += 2; }
 INLINE void jr_z(cpu *z) { if (z->f & FLAG_Z) { _jr(z); } else { z->pc += 1; } z->cycles += 2; }
 INLINE void jr_nc(cpu *z) { if (!(z->f & FLAG_C)) { _jr(z); } else { z->pc += 1; } z->cycles += 2; }
 INLINE void jr_c(cpu *z) { if (z->f & FLAG_C) { _jr(z); } else { z->pc += 1; } z->cycles += 2; }
 INLINE void _call(cpu *z) {
-  u8 l = *ptr(z, z->pc++);
-  u8 h = *ptr(z, z->pc++);
-  *ptr(z, --z->sp) = (u8)(z->pc>>8);
-  *ptr(z, --z->sp) = (u8)z->pc;
+  u8 l = cpu_read(z, z->pc++);
+  u8 h = cpu_read(z, z->pc++);
+  cpu_write(z, --z->sp, (u8)(z->pc>>8));
+  cpu_write(z, --z->sp, (u8)z->pc);
   z->pc = NN(l, h);
 }
 INLINE void call(cpu *z) { _call(z); z->cycles += 3; }
@@ -324,8 +352,8 @@ INLINE void call_nz(cpu *z) { if (!(z->f & FLAG_Z)) { _call(z); } else { z->pc +
 INLINE void call_z(cpu *z) { if (z->f & FLAG_Z) { _call(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void call_nc(cpu *z) { if (!(z->f & FLAG_C)) { _call(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void call_c(cpu *z) { if (z->f & FLAG_C) { _call(z); } else { z->pc += 2; } z->cycles += 3; }
-INLINE void rst(cpu *z, u16 n) { *ptr(z, --z->sp) = (u8)(z->pc>>8); *ptr(z, --z->sp) = (u8)z->pc; z->pc = n; z->cycles += 8; }
-INLINE void _ret(cpu *z) { u8 l = *ptr(z, z->sp++); u8 h = *ptr(z, z->sp++); z->pc = NN(l, h); }
+INLINE void rst(cpu *z, u16 n) { cpu_write(z, --z->sp, (u8)(z->pc>>8)); cpu_write(z, --z->sp, (u8)z->pc); z->pc = n; z->cycles += 8; }
+INLINE void _ret(cpu *z) { u8 l = cpu_read(z, z->sp++); u8 h = cpu_read(z, z->sp++); z->pc = NN(l, h); }
 INLINE void ret(cpu *z) { _ret(z); z->cycles += 2; }
 INLINE void ret_nz(cpu *z) { if (!(z->f & FLAG_Z)) { _ret(z); } z->cycles += 2; }
 INLINE void ret_z(cpu *z) { if (z->f & FLAG_Z) { _ret(z); } z->cycles += 2; }
@@ -340,16 +368,31 @@ INLINE void rlc_d(cpu *z) { _rlc(z, &z->d); z->cycles += 2; }
 INLINE void rlc_e(cpu *z) { _rlc(z, &z->e); z->cycles += 2; }
 INLINE void rlc_h(cpu *z) { _rlc(z, &z->h); z->cycles += 2; }
 INLINE void rlc_l(cpu *z) { _rlc(z, &z->l); z->cycles += 2; }
-INLINE void rlc_hl(cpu *z) { _rlc(z, ptr(z, HL(z))); z->cycles += 4; }
+INLINE void rlc_hl(cpu *z) {
+  u8 t = cpu_read(z, HL(z));
+  z->f = (t>>3)&FLAG_C;
+  u8 r = (u8)(t<<1)|(t>>7);
+  cpu_write(z, HL(z), r);
+  if (!r) z->f |= FLAG_Z;
+  z->cycles += 4;
+}
 INLINE void rlc_a(cpu *z) { _rlc(z, &z->a); z->cycles += 2; }
-INLINE void _rl(cpu *z, u8 *r) { u8 t = (z->f&FLAG_C)>>4; z->f = (*r>>3)&FLAG_C; *r = (u8)(*r<<1)|t; if (!*r) z->f |= FLAG_Z; }
+INLINE void _rl(cpu *z, u8 *r) { u8 c = (z->f&FLAG_C)>>4; z->f = (*r>>3)&FLAG_C; *r = (u8)(*r<<1)|c; if (!*r) z->f |= FLAG_Z; }
 INLINE void rl_b(cpu *z) { _rl(z, &z->b); z->cycles += 2; }
 INLINE void rl_c(cpu *z) { _rl(z, &z->c); z->cycles += 2; }
 INLINE void rl_d(cpu *z) { _rl(z, &z->d); z->cycles += 2; }
 INLINE void rl_e(cpu *z) { _rl(z, &z->e); z->cycles += 2; }
 INLINE void rl_h(cpu *z) { _rl(z, &z->h); z->cycles += 2; }
 INLINE void rl_l(cpu *z) { _rl(z, &z->l); z->cycles += 2; }
-INLINE void rl_hl(cpu *z) { _rl(z, ptr(z, HL(z))); z->cycles += 4; }
+INLINE void rl_hl(cpu *z) {
+  u8 c = (z->f&FLAG_C)>>4;
+  u8 t = cpu_read(z, HL(z));
+  z->f = (t>>3)&FLAG_C;
+  u8 r = (u8)(t<<1)|c;
+  cpu_write(z, HL(z), r);
+  if (!r) z->f |= FLAG_Z;
+  z->cycles += 4;
+}
 INLINE void rl_a(cpu *z) { _rl(z, &z->a); z->cycles += 2; }
 INLINE void _rrc(cpu *z, u8 *r) { z->f = (*r<<4)&FLAG_C; *r = (u8)(*r<<7)|(*r>>1); if (!*r) z->f |= FLAG_Z; }
 INLINE void rrc_b(cpu *z) { _rrc(z, &z->b); z->cycles += 2; }
@@ -358,16 +401,31 @@ INLINE void rrc_d(cpu *z) { _rrc(z, &z->d); z->cycles += 2; }
 INLINE void rrc_e(cpu *z) { _rrc(z, &z->e); z->cycles += 2; }
 INLINE void rrc_h(cpu *z) { _rrc(z, &z->h); z->cycles += 2; }
 INLINE void rrc_l(cpu *z) { _rrc(z, &z->l); z->cycles += 2; }
-INLINE void rrc_hl(cpu *z) { _rrc(z, ptr(z, HL(z))); z->cycles += 4; }
+INLINE void rrc_hl(cpu *z) {
+  u8 t = cpu_read(z, HL(z));
+  z->f = (t<<4)&FLAG_C;
+  u8 r = (u8)(t<<7)|(t>>1);
+  cpu_write(z, HL(z), r);
+  if (!r) z->f |= FLAG_Z;
+  z->cycles += 4;
+}
 INLINE void rrc_a(cpu *z) { _rrc(z, &z->a); z->cycles += 2; }
-INLINE void _rr(cpu *z, u8 *r) { u8 t = (u8)((z->f&FLAG_C)<<3); z->f = (*r<<4)&FLAG_C; *r = t|(*r>>1); if (!*r) z->f |= FLAG_Z; }
+INLINE void _rr(cpu *z, u8 *r) { u8 c = (u8)((z->f&FLAG_C)<<3); z->f = (*r<<4)&FLAG_C; *r = c|(*r>>1); if (!*r) z->f |= FLAG_Z; }
 INLINE void rr_b(cpu *z) { _rr(z, &z->b); z->cycles += 2; }
 INLINE void rr_c(cpu *z) { _rr(z, &z->c); z->cycles += 2; }
 INLINE void rr_d(cpu *z) { _rr(z, &z->d); z->cycles += 2; }
 INLINE void rr_e(cpu *z) { _rr(z, &z->e); z->cycles += 2; }
 INLINE void rr_h(cpu *z) { _rr(z, &z->h); z->cycles += 2; }
 INLINE void rr_l(cpu *z) { _rr(z, &z->l); z->cycles += 2; }
-INLINE void rr_hl(cpu *z) { _rr(z, ptr(z, HL(z))); z->cycles += 4; }
+INLINE void rr_hl(cpu *z) {
+  u8 c = (u8)((z->f&FLAG_C)<<3);
+  u8 t = cpu_read(z, HL(z));
+  z->f = (t<<4)&FLAG_C;
+  u8 r = c|(t>>1);
+  cpu_write(z, HL(z), r);
+  if (!r) z->f |= FLAG_Z;
+  z->cycles += 4;
+}
 INLINE void rr_a(cpu *z) { _rr(z, &z->a); z->cycles += 2; }
 INLINE void _sla(cpu *z, u8 *r) { z->f = (*r>>3)&FLAG_C; z->f |= (*r <<= 1)?0:FLAG_Z; }
 INLINE void sla_b(cpu *z) { _sla(z, &z->b); z->cycles += 2; }
@@ -376,7 +434,14 @@ INLINE void sla_d(cpu *z) { _sla(z, &z->d); z->cycles += 2; }
 INLINE void sla_e(cpu *z) { _sla(z, &z->e); z->cycles += 2; }
 INLINE void sla_h(cpu *z) { _sla(z, &z->h); z->cycles += 2; }
 INLINE void sla_l(cpu *z) { _sla(z, &z->l); z->cycles += 2; }
-INLINE void sla_hl(cpu *z) { _sla(z, ptr(z, HL(z))); z->cycles += 4; }
+INLINE void sla_hl(cpu *z) {
+  u8 t = cpu_read(z, HL(z));
+  z->f = (t>>3)&FLAG_C;
+  t <<= 1;
+  cpu_write(z, HL(z), t);
+  z->f |= (t?0:FLAG_Z);
+  z->cycles += 4;
+}
 INLINE void sla_a(cpu *z) { _sla(z, &z->a); z->cycles += 2; }
 INLINE void _sra(cpu *z, u8 *r) { z->f = (*r<<4)&FLAG_C; z->f |= (*r = (u8)(((s8)*r)>>1))?0:FLAG_Z; }
 INLINE void sra_b(cpu *z) { _sra(z, &z->b); z->cycles += 2; }
@@ -385,7 +450,14 @@ INLINE void sra_d(cpu *z) { _sra(z, &z->d); z->cycles += 2; }
 INLINE void sra_e(cpu *z) { _sra(z, &z->e); z->cycles += 2; }
 INLINE void sra_h(cpu *z) { _sra(z, &z->h); z->cycles += 2; }
 INLINE void sra_l(cpu *z) { _sra(z, &z->l); z->cycles += 2; }
-INLINE void sra_hl(cpu *z) { _sra(z, ptr(z, HL(z))); z->cycles += 4; }
+INLINE void sra_hl(cpu *z) {
+  u8 t = cpu_read(z, HL(z));
+  z->f = (t<<4)&FLAG_C;
+  t = (u8)(((s8)t)>>1);
+  cpu_write(z, HL(z), t);
+  z->f |= (t?0:FLAG_Z);
+  z->cycles += 4;
+}
 INLINE void sra_a(cpu *z) { _sra(z, &z->a); z->cycles += 2; }
 INLINE void swap_b(cpu *z) { z->f = (z->b = (u8)((z->b>>4)|(z->b<<4)))?0:FLAG_Z; z->cycles += 2; }
 INLINE void swap_c(cpu *z) { z->f = (z->c = (u8)((z->c>>4)|(z->c<<4)))?0:FLAG_Z; z->cycles += 2; }
@@ -393,7 +465,13 @@ INLINE void swap_d(cpu *z) { z->f = (z->d = (u8)((z->d>>4)|(z->d<<4)))?0:FLAG_Z;
 INLINE void swap_e(cpu *z) { z->f = (z->e = (u8)((z->e>>4)|(z->e<<4)))?0:FLAG_Z; z->cycles += 2; }
 INLINE void swap_h(cpu *z) { z->f = (z->h = (u8)((z->h>>4)|(z->h<<4)))?0:FLAG_Z; z->cycles += 2; }
 INLINE void swap_l(cpu *z) { z->f = (z->l = (u8)((z->l>>4)|(z->l<<4)))?0:FLAG_Z; z->cycles += 2; }
-INLINE void swap_hl(cpu *z) { u8 *hl = ptr(z, HL(z)); z->f = (*hl = (u8)(((*hl)>>4)|((*hl)<<4)))?0:FLAG_Z; z->cycles += 2; }
+INLINE void swap_hl(cpu *z) {
+  u8 t = cpu_read(z, HL(z));
+  t = (u8)((t>>4)|(t<<4));
+  cpu_write(z, HL(z), t);
+  z->f = (t?0:FLAG_Z);
+  z->cycles += 4;
+}
 INLINE void swap_a(cpu *z) { z->f = (z->a = (u8)((z->a>>4)|(z->a<<4)))?0:FLAG_Z; z->cycles += 2; }
 INLINE void _srl(cpu *z, u8 *r) { z->f = (*r<<4)&FLAG_C; z->f |= (*r >>= 1)?0:FLAG_Z; }
 INLINE void srl_b(cpu *z) { _srl(z, &z->b); z->cycles += 2; }
@@ -402,7 +480,14 @@ INLINE void srl_d(cpu *z) { _srl(z, &z->d); z->cycles += 2; }
 INLINE void srl_e(cpu *z) { _srl(z, &z->e); z->cycles += 2; }
 INLINE void srl_h(cpu *z) { _srl(z, &z->h); z->cycles += 2; }
 INLINE void srl_l(cpu *z) { _srl(z, &z->l); z->cycles += 2; }
-INLINE void srl_hl(cpu *z) { _srl(z, ptr(z, HL(z))); z->cycles += 4; }
+INLINE void srl_hl(cpu *z) {
+  u8 t = cpu_read(z, HL(z));
+  z->f = (t<<4)&FLAG_C;
+  t >>= 1;
+  cpu_write(z, HL(z), t);
+  z->f |= (t?0:FLAG_Z);
+  z->cycles += 4;
+}
 INLINE void srl_a(cpu *z) { _srl(z, &z->a); z->cycles += 2; }
 INLINE void _bit(cpu *z, u8 r, u8 b) { z->f = (u8)(~((r<<(7-b))|~FLAG_Z)) | FLAG_H | (z->f&FLAG_C); }
 INLINE void bit_b(cpu *z, u8 b) { _bit(z, z->b, b); z->cycles += 2; }
@@ -411,7 +496,7 @@ INLINE void bit_d(cpu *z, u8 b) { _bit(z, z->d, b); z->cycles += 2; }
 INLINE void bit_e(cpu *z, u8 b) { _bit(z, z->e, b); z->cycles += 2; }
 INLINE void bit_h(cpu *z, u8 b) { _bit(z, z->h, b); z->cycles += 2; }
 INLINE void bit_l(cpu *z, u8 b) { _bit(z, z->l, b); z->cycles += 2; }
-INLINE void bit_hl(cpu *z, u8 b) { _bit(z, *ptr(z, HL(z)), b); z->cycles += 4; }
+INLINE void bit_hl(cpu *z, u8 b) { _bit(z, cpu_read(z, HL(z)), b); z->cycles += 4; }
 INLINE void bit_a(cpu *z, u8 b) { _bit(z, z->a, b); z->cycles += 2; }
 INLINE void _res(u8 *r, u8 b) { *r &= ~(1<<b); }
 INLINE void res_b(cpu *z, u8 b) { _res(&z->b, b); z->cycles += 2; }
@@ -420,7 +505,7 @@ INLINE void res_d(cpu *z, u8 b) { _res(&z->d, b); z->cycles += 2; }
 INLINE void res_e(cpu *z, u8 b) { _res(&z->e, b); z->cycles += 2; }
 INLINE void res_h(cpu *z, u8 b) { _res(&z->h, b); z->cycles += 2; }
 INLINE void res_l(cpu *z, u8 b) { _res(&z->l, b); z->cycles += 2; }
-INLINE void res_hl(cpu *z, u8 b) { _res(ptr(z, HL(z)), b); z->cycles += 4; }
+INLINE void res_hl(cpu *z, u8 b) { cpu_write(z, HL(z), cpu_read(z, HL(z)) & ~(1<<b)); z->cycles += 4; }
 INLINE void res_a(cpu *z, u8 b) { _res(&z->a, b); z->cycles += 2; }
 INLINE void _set(u8 *r, u8 b) { *r |= (1<<b); }
 INLINE void set_b(cpu *z, u8 b) { _set(&z->b, b); z->cycles += 2; }
@@ -429,11 +514,11 @@ INLINE void set_d(cpu *z, u8 b) { _set(&z->d, b); z->cycles += 2; }
 INLINE void set_e(cpu *z, u8 b) { _set(&z->e, b); z->cycles += 2; }
 INLINE void set_h(cpu *z, u8 b) { _set(&z->h, b); z->cycles += 2; }
 INLINE void set_l(cpu *z, u8 b) { _set(&z->l, b); z->cycles += 2; }
-INLINE void set_hl(cpu *z, u8 b) { _set(ptr(z, HL(z)), b); z->cycles += 4; }
+INLINE void set_hl(cpu *z, u8 b) { cpu_write(z, HL(z), cpu_read(z, HL(z)) | (u8)(1<<b)); z->cycles += 4; }
 INLINE void set_a(cpu *z, u8 b) { _set(&z->a, b); z->cycles += 2; }
 
 INLINE void cb(cpu *z) {
-  u8 ins = *ptr(z, z->pc++);
+  u8 ins = cpu_read(z, z->pc++);
 
   switch (ins) {
     case 0x00: rlc_b(z); break;
@@ -696,7 +781,7 @@ INLINE void cb(cpu *z) {
 }
 
 void cpu_execute(cpu *z) {
-  u8 ins = *ptr(z, z->pc++);
+  u8 ins = cpu_read(z, z->pc++);
 
   switch (ins) {
     case 0x00: nop(z); break;
@@ -964,7 +1049,7 @@ void cpu_run_timers(cpu *z) {
   // DIV: 2^14 (16384) Hz = every 2^6 cycles
   // TODO this only works if <64 cycles have elapsed since last call
   if (z->cycles_prev % 64 > z->cycles % 64) {
-    (*ptr(z, REG_DIV))++;
+    cpu_write(z, REG_DIV, cpu_read(z, REG_DIV) + 1);
   }
 
   // TIMA: check TAC b2==1 (timer enable), then check TAC b1b0
@@ -972,19 +1057,22 @@ void cpu_run_timers(cpu *z) {
   // 01: 2^18 (262144) Hz = every 2^2 cycles
   // 10: 2^16 (65536) Hz = every 2^4 cycles
   // 11: 2^14 (16384) Hz = every 2^6 cycles
-  u8 tima = *ptr(z, REG_TAC);
-  if (tima & TAC_ENABLE) {
+  u8 tac = cpu_read(z, REG_TAC);
+  if (tac & TAC_ENABLE) {
     u32 divisors[4] = {256, 4, 16, 64};
-    u32 divisor = divisors[tima & TAC_CLOCK_SELECT];
+    u32 divisor = divisors[tac & TAC_CLOCK_SELECT];
 
     u32 counter = z->cycles_prev;
     if (counter % divisor != 0) {
       counter += divisor - (counter % divisor);
     }
     for (; counter < z->cycles; counter += divisor) {
-      if (!(++*ptr(z, REG_TIMA))) {
-        *ptr(z, REG_TIMA) = *ptr(z, REG_TMA);
-        *ptr(z, REG_IF) |= INT_TIMER;
+      u8 tima = cpu_read(z, REG_TIMA) + 1;
+      if (tima == 0) {
+        cpu_write(z, REG_TIMA, cpu_read(z, REG_TMA));
+        cpu_write(z, REG_IF, cpu_read(z, REG_IF)|INT_TIMER);
+      } else {
+        cpu_write(z, REG_TIMA, tima);
       }
     }
   }
@@ -993,27 +1081,27 @@ void cpu_run_timers(cpu *z) {
 }
 
 u8 cpu_handle_ints(cpu *z) {
-  u8 masked = *ptr(z, REG_IF) & *ptr(z, REG_IE);
+  u8 masked = cpu_read(z, REG_IF) & cpu_read(z, REG_IE);
   if (masked) {
     // always take cpu out of halted even if interrupts are disabled
     z->halted = 0;
 
     if (z->ints_enabled) {
-      *ptr(z, --z->sp) = (u8)(z->pc>>8); *ptr(z, --z->sp) = (u8)z->pc;
+      cpu_write(z, --z->sp, (u8)(z->pc>>8)); cpu_write(z, --z->sp, (u8)z->pc);
       if (masked & INT_VBLANK) {
-        *ptr(z, REG_IF) &= ~INT_VBLANK;
+        cpu_write(z, REG_IF, cpu_read(z, REG_IF)&~INT_VBLANK);
         z->pc = 0x0040;
       } else if (masked & INT_LCDC_STAT) {
-        *ptr(z, REG_IF) &= ~INT_LCDC_STAT;
+        cpu_write(z, REG_IF, cpu_read(z, REG_IF)&~INT_LCDC_STAT);
         z->pc = 0x0048;
       } else if (masked & INT_TIMER) {
-        *ptr(z, REG_IF) &= ~INT_TIMER;
+        cpu_write(z, REG_IF, cpu_read(z, REG_IF)&~INT_TIMER);
         z->pc = 0x0050;
       } else if (masked & INT_SERIAL) {
-        *ptr(z, REG_IF) &= ~INT_SERIAL;
+        cpu_write(z, REG_IF, cpu_read(z, REG_IF)&~INT_SERIAL);
         z->pc = 0x0058;
       } else if (masked & INT_BUTTON) {
-        *ptr(z, REG_IF) &= ~INT_BUTTON;
+        cpu_write(z, REG_IF, cpu_read(z, REG_IF)&~INT_BUTTON);
         z->pc = 0x0060;
       }
 

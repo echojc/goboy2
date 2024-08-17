@@ -25,7 +25,8 @@ typedef struct {
 
 void cpu_init(cpu *z);
 void cpu_step(cpu *z);
-u8 *ptr(cpu *z, u16 addr);
+u8 cpu_read(cpu *z, u16 addr);
+void cpu_write(cpu *z, u16 addr, u8 byte);
 
 #define REG_DIV  (0xff04)
 #define REG_TIMA (0xff05)

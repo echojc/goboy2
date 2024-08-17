@@ -47,5 +47,5 @@ func (z *CPU) Step() error {
 }
 
 func (z *CPU) Read(addr C.ushort) byte {
-	return byte(*C.ptr(&z.CPU, addr))
+	return byte(C.cpu_read(&z.CPU, addr))
 }
