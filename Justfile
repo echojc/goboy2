@@ -1,5 +1,5 @@
-run-go: build-c
-  go run go/*.go
+run file: build-c
+  go run go/*.go {{file}}
 
 build-c: ensure-output
   gcc -O3 -Werror \
