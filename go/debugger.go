@@ -164,18 +164,18 @@ func (d *Debugger) NextAddr(addr uint16) uint16 {
 	return addr + uint16(len(d.Disassemble(addr).Bytes))
 }
 
-// PrevAddr returns the earliest valid address that, after execution, results
+// PrevAddr returns the first valid address that, after execution, results
 // in PC being set to addr. If there is no instruction that can do so, addr is
 // returned.
 func (d *Debugger) PrevAddr(addr uint16) uint16 {
 	// check cache directly for already disassembled addresses first, because it
 	// is likely these are correct addresses
-	if dasm, ok := d.dasmCache[addr-3]; ok && len(dasm.Bytes) == 3 {
-		return addr - 3
+	if dasm, ok := d.dasmCache[addr-1]; ok && len(dasm.Bytes) == 1 {
+		return addr - 1
 	} else if dasm, ok := d.dasmCache[addr-2]; ok && len(dasm.Bytes) == 2 {
 		return addr - 2
-	} else if dasm, ok := d.dasmCache[addr-1]; ok && len(dasm.Bytes) == 1 {
-		return addr - 1
+	} else if dasm, ok := d.dasmCache[addr-3]; ok && len(dasm.Bytes) == 3 {
+		return addr - 3
 	}
 
 	// if no previous address was previously disassembled, search for the
