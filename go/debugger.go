@@ -96,6 +96,7 @@ func (d *Debugger) CPUState() CPUState {
 
 func (d *Debugger) StepInto() {
 	d.Z.Step()
+	d.InvalidateDasmCache()
 }
 
 func (d *Debugger) StepOver() {
@@ -110,6 +111,7 @@ func (d *Debugger) StepOver() {
 	} else {
 		d.Z.Step()
 	}
+	d.InvalidateDasmCache()
 }
 
 func (d *Debugger) Run() {
@@ -119,6 +121,7 @@ func (d *Debugger) Run() {
 			break
 		}
 	}
+	d.InvalidateDasmCache()
 }
 
 func (d *Debugger) PC() uint16 {
@@ -195,10 +198,8 @@ func (d *Debugger) PrevAddr(addr uint16) uint16 {
 	return addr
 }
 
-func (d *Debugger) InvalidateDasms(start, end uint16) {
-	for addr := start; addr < end; addr++ {
-		delete(d.dasmCache, addr)
-	}
+func (d *Debugger) InvalidateDasmCache() {
+	d.dasmCache = make(map[uint16]Dasm)
 }
 
 type Dasm struct {

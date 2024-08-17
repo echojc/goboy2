@@ -100,7 +100,6 @@ func (ui *UI) JumpToDasm() {
 	pc := ui.Debugger.PC()
 	if !slices.Contains(ui.dasmAddrs, pc) {
 		ui.dasmStartAddr = pc
-		ui.dasmCursor = 0
 	}
 }
 
