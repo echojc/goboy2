@@ -13,6 +13,7 @@ type Debugger struct {
 	breakpoints map[uint16]bool
 	cpuState    CPUState
 	romBanks    []*C.uchar
+	romBank     C.uchar
 	dasmCache   map[uint16]Dasm
 }
 
@@ -51,8 +52,9 @@ func (d *Debugger) Load(file string) error {
 	}
 
 	d.Z.CPU.rom = d.romBanks[0]
-	if len(d.romBanks) > 1 {
-		d.Z.CPU.xrom = d.romBanks[1]
+	if len(d.romBanks) > int(d.Z.CPU.xrom_bank) {
+		d.Z.CPU.xrom = d.romBanks[d.Z.CPU.xrom_bank]
+		d.romBank = 1
 	}
 
 	return nil
@@ -94,8 +96,18 @@ func (d *Debugger) CPUState() CPUState {
 	return d.cpuState
 }
 
+func (d *Debugger) step() error {
+	err := d.Z.Step()
+	// check rom/ram banks
+	if d.Z.CPU.xrom_bank != d.romBank {
+		d.romBank = d.Z.CPU.xrom_bank
+		d.Z.CPU.xrom = d.romBanks[d.romBank]
+	}
+	return err
+}
+
 func (d *Debugger) StepInto() {
-	d.Z.Step()
+	d.step()
 	d.InvalidateDasmCache()
 }
 
@@ -103,20 +115,20 @@ func (d *Debugger) StepOver() {
 	if isCall(d.PCBytes()[0]) {
 		next := d.NextAddr(d.PC())
 		for d.PC() != next {
-			err := d.Z.Step()
+			err := d.step()
 			if err == ErrBreak || d.breakpoints[d.PC()] {
 				break
 			}
 		}
 	} else {
-		d.Z.Step()
+		d.step()
 	}
 	d.InvalidateDasmCache()
 }
 
 func (d *Debugger) Run() {
 	for {
-		err := d.Z.Step()
+		err := d.step()
 		if err == ErrBreak || d.breakpoints[d.PC()] {
 			break
 		}

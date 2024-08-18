@@ -21,12 +21,19 @@ typedef struct {
 
   // cpu states
   u8 halted, stopped, ints_enabled;
+
+  // banks
+  u8 cart_reg1, cart_reg2, cart_reg3;
+  u8 xrom_bank, xram_bank;
+  u8 xram_enabled;
 } cpu;
 
 void cpu_init(cpu *z);
 void cpu_step(cpu *z);
 u8 cpu_read(cpu *z, u16 addr);
 void cpu_write(cpu *z, u16 addr, u8 byte);
+
+#define XRAM_ENABLE (0x0a)
 
 #define REG_DIV  (0xff04)
 #define REG_TIMA (0xff05)

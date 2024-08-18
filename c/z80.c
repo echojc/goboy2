@@ -3,6 +3,17 @@
 void cpu_init(cpu *z) {
   z->sp = 0xfffe;
   z->pc = 0x0100;
+  z->cycles = 0;
+  z->cycles_prev = 0;
+  z->halted = 0;
+  z->stopped = 0;
+  z->ints_enabled = 0;
+  z->cart_reg1 = 0;
+  z->cart_reg2 = 0;
+  z->cart_reg3 = 0;
+  z->xrom_bank = 1;
+  z->xram_bank = 0;
+  z->xram_enabled = 0;
   z->rom = (void *)0;
   z->xrom = (void *)0;
   z->xram = (void *)0;
@@ -18,11 +29,36 @@ u8 cpu_read(cpu *z, u16 addr) {
     case 2: return z->xrom ? z->xrom[addr&0x1fff] : 0;
     case 3: return z->xrom ? z->xrom[addr&0x3fff] : 0;
     case 4: return z->vram[addr&0x1fff];
-    case 5: return z->xram ? z->xram[addr&0x1fff] : 0;
+    case 5: return (z->xram && z->xram_enabled) ? z->xram[addr&0x1fff] : 0xff;
     case 6:
     case 7: return z->ram[addr&0x1fff];
   }
   return 0;
+}
+
+// TODO: this only partially emulates MBC1
+static void cpu_bank_select(cpu *z) {
+  u8 shift = (z->rom ? z->rom[0x0148] : 0);
+  u8 rom_mask = (u8)(2 << shift) - 1;
+  u8 rom_bank = (u8)((z->cart_reg2&0x03)<<5)|(z->cart_reg1&0x1f);
+  z->xrom_bank = ((rom_bank & 0x1f) ? rom_bank : (rom_bank + 1)) & rom_mask;
+
+  if (z->cart_reg3 & 0x01) {
+    u8 ram_mask;
+    switch (z->rom ? z->rom[0x0149] : 0) {
+      default:
+      case 0x00:
+      case 0x01:
+      case 0x02: ram_mask = 0x00; break;
+      case 0x03: ram_mask = 0x03; break;
+      case 0x04: ram_mask = 0x0f; break;
+      case 0x05: ram_mask = 0x07; break;
+    }
+    u8 ram_bank = z->cart_reg2 & 0x03;
+    z->xram_bank = ram_bank & ram_mask;
+  } else {
+    z->xram_bank = 0;
+  }
 }
 
 void cpu_write(cpu *z, u16 addr, u8 byte) {
@@ -31,12 +67,12 @@ void cpu_write(cpu *z, u16 addr, u8 byte) {
     return;
   }
   switch (addr>>13) {
-    case 0: break;
-    case 1: break;
-    case 2: break;
-    case 3: break;
+    case 0: z->xram_enabled = ((byte&0x0f) == XRAM_ENABLE); break;
+    case 1: z->cart_reg1 = byte; cpu_bank_select(z); break;
+    case 2: z->cart_reg2 = byte; cpu_bank_select(z); break;
+    case 3: z->cart_reg3 = byte; cpu_bank_select(z); break;
     case 4: z->vram[addr&0x1fff] = byte; break;
-    case 5: if (z->xram) z->xram[addr&0x1fff] = byte; break;
+    case 5: if (z->xram && z->xram_enabled) z->xram[addr&0x1fff] = byte; break;
     case 6:
     case 7: z->ram[addr&0x1fff] = byte; break;
   }
