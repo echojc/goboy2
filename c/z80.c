@@ -363,14 +363,14 @@ INLINE void rlca(cpu *z) { z->f = (z->a>>3)&FLAG_C; z->a = (u8)(z->a<<1)|(z->a>>
 INLINE void rla(cpu *z) { u8 t = (z->f&FLAG_C)>>4; z->f = (z->a>>3)&FLAG_C; z->a = (u8)(z->a<<1)|t; z->cycles += 1; }
 INLINE void rrca(cpu *z) { z->f = (z->a<<4)&FLAG_C; z->a = (u8)(z->a<<7)|(z->a>>1); z->cycles += 1; }
 INLINE void rra(cpu *z) { u8 t = (u8)((z->f&FLAG_C)<<3); z->f = (z->a<<4)&FLAG_C; z->a = t|(z->a>>1); z->cycles += 1; }
-INLINE void _jp(cpu *z) { u8 l = cpu_read(z, z->pc++); u8 h = cpu_read(z, z->pc++); z->pc = NN(l, h); }
+INLINE void _jp(cpu *z) { u8 l = cpu_read(z, z->pc++); u8 h = cpu_read(z, z->pc++); z->pc = NN(l, h); z->cycles += 1; }
 INLINE void jp(cpu *z) { _jp(z); z->cycles += 3; }
 INLINE void jp_nz(cpu *z) { if (!(z->f & FLAG_Z)) { _jp(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void jp_z(cpu *z) { if (z->f & FLAG_Z) { _jp(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void jp_nc(cpu *z) { if (!(z->f & FLAG_C)) { _jp(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void jp_c(cpu *z) { if (z->f & FLAG_C) { _jp(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void jp_hl(cpu *z) { z->pc = HL(z); z->cycles += 1; }
-INLINE void _jr(cpu *z) { z->pc += (s8)cpu_read(z, z->pc++); }
+INLINE void _jr(cpu *z) { z->pc += (s8)cpu_read(z, z->pc++); z->cycles += 1; }
 INLINE void jr(cpu *z) { _jr(z); z->cycles += 2; }
 INLINE void jr_nz(cpu *z) { if (!(z->f & FLAG_Z)) { _jr(z); } else { z->pc += 1; } z->cycles += 2; }
 INLINE void jr_z(cpu *z) { if (z->f & FLAG_Z) { _jr(z); } else { z->pc += 1; } z->cycles += 2; }
@@ -382,20 +382,21 @@ INLINE void _call(cpu *z) {
   cpu_write(z, --z->sp, (u8)(z->pc>>8));
   cpu_write(z, --z->sp, (u8)z->pc);
   z->pc = NN(l, h);
+  z->cycles += 3;
 }
 INLINE void call(cpu *z) { _call(z); z->cycles += 3; }
 INLINE void call_nz(cpu *z) { if (!(z->f & FLAG_Z)) { _call(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void call_z(cpu *z) { if (z->f & FLAG_Z) { _call(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void call_nc(cpu *z) { if (!(z->f & FLAG_C)) { _call(z); } else { z->pc += 2; } z->cycles += 3; }
 INLINE void call_c(cpu *z) { if (z->f & FLAG_C) { _call(z); } else { z->pc += 2; } z->cycles += 3; }
-INLINE void rst(cpu *z, u16 n) { cpu_write(z, --z->sp, (u8)(z->pc>>8)); cpu_write(z, --z->sp, (u8)z->pc); z->pc = n; z->cycles += 8; }
-INLINE void _ret(cpu *z) { u8 l = cpu_read(z, z->sp++); u8 h = cpu_read(z, z->sp++); z->pc = NN(l, h); }
-INLINE void ret(cpu *z) { _ret(z); z->cycles += 2; }
+INLINE void rst(cpu *z, u16 n) { cpu_write(z, --z->sp, (u8)(z->pc>>8)); cpu_write(z, --z->sp, (u8)z->pc); z->pc = n; z->cycles += 4; }
+INLINE void _ret(cpu *z) { u8 l = cpu_read(z, z->sp++); u8 h = cpu_read(z, z->sp++); z->pc = NN(l, h); z->cycles += 3; }
+INLINE void ret(cpu *z) { _ret(z); z->cycles += 1; }
 INLINE void ret_nz(cpu *z) { if (!(z->f & FLAG_Z)) { _ret(z); } z->cycles += 2; }
 INLINE void ret_z(cpu *z) { if (z->f & FLAG_Z) { _ret(z); } z->cycles += 2; }
 INLINE void ret_nc(cpu *z) { if (!(z->f & FLAG_C)) { _ret(z); } z->cycles += 2; }
 INLINE void ret_c(cpu *z) { if (z->f & FLAG_C) { _ret(z); } z->cycles += 2; }
-INLINE void reti(cpu *z) { _ret(z); z->ints_enabled = 1; z->cycles += 2; }
+INLINE void reti(cpu *z) { _ret(z); z->ints_enabled = 1; z->cycles += 1; }
 
 INLINE void _rlc(cpu *z, u8 *r) { z->f = (*r>>3)&FLAG_C; *r = (u8)(*r<<1)|(*r>>7); if (!*r) z->f |= FLAG_Z; }
 INLINE void rlc_b(cpu *z) { _rlc(z, &z->b); z->cycles += 2; }
@@ -532,7 +533,7 @@ INLINE void bit_d(cpu *z, u8 b) { _bit(z, z->d, b); z->cycles += 2; }
 INLINE void bit_e(cpu *z, u8 b) { _bit(z, z->e, b); z->cycles += 2; }
 INLINE void bit_h(cpu *z, u8 b) { _bit(z, z->h, b); z->cycles += 2; }
 INLINE void bit_l(cpu *z, u8 b) { _bit(z, z->l, b); z->cycles += 2; }
-INLINE void bit_hl(cpu *z, u8 b) { _bit(z, cpu_read(z, HL(z)), b); z->cycles += 4; }
+INLINE void bit_hl(cpu *z, u8 b) { _bit(z, cpu_read(z, HL(z)), b); z->cycles += 3; }
 INLINE void bit_a(cpu *z, u8 b) { _bit(z, z->a, b); z->cycles += 2; }
 INLINE void _res(u8 *r, u8 b) { *r &= ~(1<<b); }
 INLINE void res_b(cpu *z, u8 b) { _res(&z->b, b); z->cycles += 2; }
