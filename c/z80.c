@@ -1095,21 +1095,25 @@ static void cpu_run_timers(cpu *z) {
   // 11: 2^14 (16384) Hz = every 2^6 cycles
   u8 tac = cpu_read(z, REG_TAC);
   if (tac & TAC_ENABLE) {
-    u32 divisors[4] = {256, 4, 16, 64};
+    u32 divisors[4] = {1<<7, 1<<1, 1<<3, 1<<5};
     u32 divisor = divisors[tac & TAC_CLOCK_SELECT];
 
-    u32 counter = z->cycles_prev;
-    if (counter % divisor != 0) {
-      counter += divisor - (counter % divisor);
-    }
-    for (; counter < z->cycles; counter += divisor) {
-      u8 tima = cpu_read(z, REG_TIMA) + 1;
-      if (tima == 0) {
-        cpu_write(z, REG_TIMA, cpu_read(z, REG_TMA));
-        cpu_write(z, REG_IF, cpu_read(z, REG_IF)|INT_TIMER);
-      } else {
-        cpu_write(z, REG_TIMA, tima);
+    // "catch up" to current cycles
+    u32 last = (z->cycles_prev & divisor);
+    while (z->cycles_prev != z->cycles) {
+      z->cycles_prev++;
+      u32 this = (z->cycles_prev & divisor);
+      // timers tick on falling edge
+      if (last && !this) {
+        u8 tima = cpu_read(z, REG_TIMA) + 1;
+        if (tima == 0) {
+          cpu_write(z, REG_TIMA, cpu_read(z, REG_TMA));
+          cpu_write(z, REG_IF, cpu_read(z, REG_IF)|INT_TIMER);
+        } else {
+          cpu_write(z, REG_TIMA, tima);
+        }
       }
+      last = this;
     }
   }
 
