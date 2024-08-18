@@ -780,7 +780,7 @@ INLINE void cb(cpu *z) {
   }
 }
 
-void cpu_execute(cpu *z) {
+static void cpu_execute(cpu *z) {
   u8 ins = cpu_read(z, z->pc++);
 
   switch (ins) {
@@ -1043,7 +1043,7 @@ void cpu_execute(cpu *z) {
   }
 }
 
-void cpu_run_timers(cpu *z) {
+static void cpu_run_timers(cpu *z) {
   // CPU: 2^20 cycles
 
   // DIV: 2^14 (16384) Hz = every 2^6 cycles
@@ -1080,7 +1080,7 @@ void cpu_run_timers(cpu *z) {
   z->cycles_prev = z->cycles;
 }
 
-u8 cpu_handle_ints(cpu *z) {
+static u8 cpu_handle_ints(cpu *z) {
   u8 masked = cpu_read(z, REG_IF) & cpu_read(z, REG_IE);
   if (masked) {
     // always take cpu out of halted even if interrupts are disabled
