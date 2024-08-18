@@ -29,7 +29,7 @@ func (z *CPU) Step() error {
 
 	ins := z.Read(z.CPU.pc)
 	arg1 := z.Read(z.CPU.pc + 1)
-	//arg2 := z.Read(z.CPU.pc + 2)
+	arg2 := z.Read(z.CPU.pc + 2)
 
 	switch ins {
 	case 0xe0: // intercept serial data
@@ -39,6 +39,11 @@ func (z *CPU) Step() error {
 		}
 	case 0x18: // intercept while true loop
 		if arg1 == 0xfe { // jr -2
+			return ErrBreak
+		}
+	case 0xc3: // intercept while true loop
+		addr := C.ushort(arg1) + (C.ushort(arg2) << 8)
+		if addr == z.CPU.pc { // label: jp label
 			return ErrBreak
 		}
 	}
