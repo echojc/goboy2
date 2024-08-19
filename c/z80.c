@@ -7,7 +7,7 @@ void cpu_init(cpu *z) {
   z->cycles_prev = 0;
   z->halted = 0;
   z->stopped = 0;
-  z->ints_enabled = 0;
+  z->irq_enabled = 0;
   z->cart_reg1 = 0;
   z->cart_reg2 = 0;
   z->cart_reg3 = 0;
@@ -357,8 +357,8 @@ INLINE void scf(cpu *z) { z->f = (z->f&FLAG_Z)|FLAG_C; z->cycles += 1; }
 INLINE void nop(cpu *z) { z->cycles += 1; }
 INLINE void halt(cpu *z) { z->halted = 1; z->cycles += 1; }
 INLINE void stop(cpu *z) { z->stopped = 1; z->cycles += 1; }
-INLINE void di(cpu *z) { z->ints_enabled = 0; z->cycles += 1; }
-INLINE void ei(cpu *z) { z->ints_enabled = 1; z->cycles += 1; }
+INLINE void di(cpu *z) { z->irq_enabled = 0; z->cycles += 1; }
+INLINE void ei(cpu *z) { z->irq_enabled = 1; z->cycles += 1; }
 INLINE void rlca(cpu *z) { z->f = (z->a>>3)&FLAG_C; z->a = (u8)(z->a<<1)|(z->a>>7); z->cycles += 1; }
 INLINE void rla(cpu *z) { u8 t = (z->f&FLAG_C)>>4; z->f = (z->a>>3)&FLAG_C; z->a = (u8)(z->a<<1)|t; z->cycles += 1; }
 INLINE void rrca(cpu *z) { z->f = (z->a<<4)&FLAG_C; z->a = (u8)(z->a<<7)|(z->a>>1); z->cycles += 1; }
@@ -396,7 +396,7 @@ INLINE void ret_nz(cpu *z) { if (!(z->f & FLAG_Z)) { _ret(z); } z->cycles += 2; 
 INLINE void ret_z(cpu *z) { if (z->f & FLAG_Z) { _ret(z); } z->cycles += 2; }
 INLINE void ret_nc(cpu *z) { if (!(z->f & FLAG_C)) { _ret(z); } z->cycles += 2; }
 INLINE void ret_c(cpu *z) { if (z->f & FLAG_C) { _ret(z); } z->cycles += 2; }
-INLINE void reti(cpu *z) { _ret(z); z->ints_enabled = 1; z->cycles += 1; }
+INLINE void reti(cpu *z) { _ret(z); z->irq_enabled = 1; z->cycles += 1; }
 
 INLINE void _rlc(cpu *z, u8 *r) { z->f = (*r>>3)&FLAG_C; *r = (u8)(*r<<1)|(*r>>7); if (!*r) z->f |= FLAG_Z; }
 INLINE void rlc_b(cpu *z) { _rlc(z, &z->b); z->cycles += 2; }
@@ -1121,13 +1121,13 @@ static void cpu_run_timers(cpu *z) {
   z->cycles_prev = z->cycles;
 }
 
-static u8 cpu_handle_ints(cpu *z) {
+static u8 cpu_handle_irqs(cpu *z) {
   u8 masked = cpu_read(z, REG_IF) & cpu_read(z, REG_IE);
   if (masked) {
     // always take cpu out of halted even if interrupts are disabled
     z->halted = 0;
 
-    if (z->ints_enabled) {
+    if (z->irq_enabled) {
       cpu_write(z, --z->sp, (u8)(z->pc>>8)); cpu_write(z, --z->sp, (u8)z->pc);
       if (masked & INT_VBLANK) {
         cpu_write(z, REG_IF, cpu_read(z, REG_IF)&~INT_VBLANK);
@@ -1146,7 +1146,7 @@ static u8 cpu_handle_ints(cpu *z) {
         z->pc = 0x0060;
       }
 
-      z->ints_enabled = 0;
+      z->irq_enabled = 0;
       // https://gbdev.gg8.se/wiki/articles/Interrupts#Interrupt_Service_Routine
       z->cycles += 5;
       return 1;
@@ -1157,7 +1157,7 @@ static u8 cpu_handle_ints(cpu *z) {
 
 void cpu_step(cpu *z) {
   cpu_run_timers(z);
-  if (cpu_handle_ints(z)) {
+  if (cpu_handle_irqs(z)) {
     return;
   }
 

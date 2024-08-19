@@ -89,7 +89,7 @@ func (ui *UI) RenderCPU(g *gocui.Gui) error {
 		tern(z.FC, 'C', 'c'),
 		z.SP, z.PC,
 		tern(z.Stopped, 'S', tern(z.Halted, 'H', 'R')),
-		tern(z.IntsEnabled, 'E', 'D'),
+		tern(z.IrqEnabled, 'E', 'D'),
 		z.Cycles,
 	)
 

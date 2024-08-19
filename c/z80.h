@@ -20,7 +20,7 @@ typedef struct {
   u32 cycles, cycles_prev; // ok to overflow; clock rate is power of 2
 
   // cpu states
-  u8 halted, stopped, ints_enabled;
+  u8 halted, stopped, irq_enabled;
 
   // banks
   u8 cart_reg1, cart_reg2, cart_reg3;

@@ -61,11 +61,11 @@ func (d *Debugger) Load(file string) error {
 }
 
 type CPUState struct {
-	B, C, D, E, H, L, A          uint8
-	FZ, FN, FH, FC               bool
-	SP, PC                       uint16
-	Cycles                       uint32
-	Halted, Stopped, IntsEnabled bool
+	B, C, D, E, H, L, A         uint8
+	FZ, FN, FH, FC              bool
+	SP, PC                      uint16
+	Cycles                      uint32
+	Halted, Stopped, IrqEnabled bool
 }
 
 func (d *Debugger) CPUState() CPUState {
@@ -75,23 +75,23 @@ func (d *Debugger) CPUState() CPUState {
 	}
 
 	d.cpuState = CPUState{
-		B:           uint8(z.b),
-		C:           uint8(z.c),
-		D:           uint8(z.d),
-		E:           uint8(z.e),
-		H:           uint8(z.h),
-		L:           uint8(z.l),
-		A:           uint8(z.a),
-		FZ:          z.f&(1<<7) > 0,
-		FN:          z.f&(1<<6) > 0,
-		FH:          z.f&(1<<5) > 0,
-		FC:          z.f&(1<<4) > 0,
-		SP:          uint16(z.sp),
-		PC:          uint16(z.pc),
-		Cycles:      uint32(z.cycles),
-		Halted:      z.halted > 0,
-		Stopped:     z.stopped > 0,
-		IntsEnabled: z.ints_enabled > 0,
+		B:          uint8(z.b),
+		C:          uint8(z.c),
+		D:          uint8(z.d),
+		E:          uint8(z.e),
+		H:          uint8(z.h),
+		L:          uint8(z.l),
+		A:          uint8(z.a),
+		FZ:         z.f&(1<<7) > 0,
+		FN:         z.f&(1<<6) > 0,
+		FH:         z.f&(1<<5) > 0,
+		FC:         z.f&(1<<4) > 0,
+		SP:         uint16(z.sp),
+		PC:         uint16(z.pc),
+		Cycles:     uint32(z.cycles),
+		Halted:     z.halted > 0,
+		Stopped:    z.stopped > 0,
+		IrqEnabled: z.irq_enabled > 0,
 	}
 	return d.cpuState
 }
