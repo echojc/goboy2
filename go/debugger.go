@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"image"
+	"image/color"
 	"io/ioutil"
 	"strings"
 )
@@ -232,4 +234,56 @@ func (d *Dasm) String() string {
 	}
 	fmt.Fprintf(&sb, "%s", d.Decoded)
 	return sb.String()
+}
+
+type Tile [64]uint8
+
+func (t Tile) ColorModel() color.Model {
+	return color.GrayModel
+}
+
+func (t Tile) Bounds() image.Rectangle {
+	return image.Rect(0, 0, 8, 8)
+}
+
+func (t Tile) At(x, y int) color.Color {
+	return color.Gray{Y: (3 - t[y*8+x]) * 0x55}
+}
+
+type TilesAll [256 + 128]Tile
+
+func (t TilesAll) ColorModel() color.Model {
+	return color.GrayModel
+}
+
+func (t TilesAll) Bounds() image.Rectangle {
+	return image.Rect(0, 0, 128, 192)
+}
+
+func (t TilesAll) At(x, y int) color.Color {
+	return t[(y/8)*16+(x/8)].At(x%8, y%8)
+}
+
+func (d *Debugger) Tiles() TilesAll {
+	var tiles TilesAll
+	for tileID := 0; tileID < 256; tileID++ {
+		for y := C.uchar(0); y < 8; y++ {
+			row := d.Z.TileData(TileMode8000, C.uchar(tileID), y)
+			if tileID == 0x21 {
+				fmt.Printf("%x\n", row)
+			}
+			for x := C.uchar(0); x < 8; x++ {
+				tiles[tileID][y*8+x] = uint8((row >> ((7 - x) * 2)) & 0x03)
+			}
+		}
+	}
+	for tileID := 0; tileID < 128; tileID++ {
+		for y := C.uchar(0); y < 8; y++ {
+			row := d.Z.TileData(TileMode9000, C.uchar(tileID), y)
+			for x := C.uchar(0); x < 8; x++ {
+				tiles[tileID+256][y*8+x] = uint8((row >> ((7 - x) * 2)) & 0x03)
+			}
+		}
+	}
+	return tiles
 }

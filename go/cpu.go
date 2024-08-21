@@ -54,3 +54,14 @@ func (z *CPU) Step() error {
 func (z *CPU) Read(addr C.ushort) byte {
 	return byte(C.cpu_read(&z.CPU, addr))
 }
+
+type tileMode C.ushort
+
+const (
+	TileMode8000 = 0x8000
+	TileMode9000 = 0x9000
+)
+
+func (z *CPU) TileData(baseAddr tileMode, tileID C.uchar, y C.uchar) uint16 {
+	return uint16(C.tile_data(&z.CPU, C.ushort(baseAddr), tileID, y))
+}

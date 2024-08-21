@@ -14,13 +14,20 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ui, err := NewUI(d)
+	cli, err := NewCLI(d)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer ui.Close()
+	defer cli.Close()
 
-	if err := ui.MainLoop(); err != nil && err != gocui.ErrQuit {
-		log.Fatal(err)
-	}
+	gui := NewGUI(d)
+
+	go func() {
+		defer gui.Close()
+		if err := cli.MainLoop(); err != nil && err != gocui.ErrQuit {
+			log.Fatal(err)
+		}
+	}()
+
+	gui.ShowAndRun()
 }
